@@ -7,7 +7,7 @@ import argparse
 
 from src import *
 
-parser = argparse.ArgumentParser('MBWD: General Pattern Search')
+parser = argparse.ArgumentParser('VPC: General Pattern Search. Config generator')
 parser.add_argument('dataset', type=str, help='Dataset path')
 parser.add_argument('label', type=str, help='Cluster label path with respect to the given dataset')
 parser.add_argument('output', type=str, help='Save directory path of filters json file')
@@ -82,6 +82,7 @@ def main(args):
     output_dir_path = args.output
 
     # load data
+    print("Loading dataset...")
     data_classes = load_data(dataset_path, label_path)
     
     # compute entropy
