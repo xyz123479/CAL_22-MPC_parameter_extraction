@@ -65,7 +65,10 @@ def get_data_and_label(dataset_path, label_path):
             if (d == 0).all():
                 new_labels.append(0)
             # all-wordsame
-            elif ((d[0::4]==d[0] and d[1::4]==d[1] and d[2::4]==d[2] and d[3::4]==d[3]).all()):
+            elif ((d[0::4]==d[0]).all()
+                and (d[1::4]==d[1]).all()
+                and (d[2::4]==d[2]).all()
+                and (d[3::4]==d[3]).all()):
                 new_labels.append(1)
             # bool/char
             elif (labels[i]==0 or labels[i]==1):

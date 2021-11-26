@@ -56,13 +56,13 @@ def make_filters(weight_entropy_arrays, symbol_entropy_arrays):
 def generate_scan_path(data_classes, compression_filters):
     # make residue
     residue_array = {}
-    for selected_cluster in range(1, NUM_CLUSTERS - 1):
+    for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         residue_array[selected_cluster] = compute_residue(
             data_classes[selected_cluster], compression_filters[selected_cluster],
             selected_cluster).astype(np.uint8)
     # find scan route
     scan_index_array = {}
-    for selected_cluster in range(1, NUM_CLUSTERS - 1):
+    for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         residue = residue_array[selected_cluster]
         DBP = BPX(residue, consecutive_xor=True)
         scan_index = phi_scan(DBP, selected_cluster)
