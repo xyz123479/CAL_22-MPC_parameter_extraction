@@ -57,3 +57,5 @@ def main(args):
 
     df.to_csv(output_dir_path + '/comp_accuracy-prox_matrix.csv')
 
+if __name__ == "__main__":
+    main(args)

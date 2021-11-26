@@ -115,11 +115,14 @@ def make_config(compression_tables, scan_tables):
             0: {
                 "name": "AllZero",
             },
+            1: {
+                "name": "AllWordSame",
+            },
         }
     }
     
     # add PredCompModules
-    for selected_module in range(1, num_modules):
+    for selected_module in range(NUM_FIRST_CLUSTER, num_modules):
         root_idx = compression_tables[selected_module]['root_idx']
         base_idx_table = compression_tables[selected_module]['base_idx_table']
         weight_table = compression_tables[selected_module]['weight_table']

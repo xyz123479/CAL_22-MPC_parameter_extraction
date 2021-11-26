@@ -22,7 +22,7 @@ except argparse.ArgumentError as e:
 def compute_weight_entropy(data_classes):
     entropy_arrays = {}
     p_bar = tqdm(total = NUM_TYPES * LINESIZE * LINESIZE, desc='Computing weight entropy', ncols=150)
-    for selected_cluster in range(1, NUM_CLUSTERS - 1):
+    for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         selected_cluster_data = data_classes[selected_cluster]
         entropy_array = compute_entropy_by_weight(selected_cluster_data, rounding_fn=power2(), p_bar=p_bar)
         entropy_arrays[selected_cluster] = entropy_array
@@ -32,7 +32,7 @@ def compute_weight_entropy(data_classes):
 def compute_symbol_entropy(data_classes):
     entropy_arrays = {}
     p_bar = tqdm(total = NUM_TYPES * LINESIZE, desc='Computing symbol entropy', ncols=150)
-    for selected_cluster in range(1, NUM_CLUSTERS - 1):
+    for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         selected_cluster_data = data_classes[selected_cluster]
         entropy_array = compute_entropy_by_symbols(selected_cluster_data, p_bar)
         entropy_arrays[selected_cluster] = entropy_array
@@ -41,7 +41,7 @@ def compute_symbol_entropy(data_classes):
 
 def make_filters(weight_entropy_arrays, symbol_entropy_arrays):
     compression_filters = {}
-    for selected_cluster in range(1, NUM_CLUSTERS - 1):
+    for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         weight_entropy_array = weight_entropy_arrays[selected_cluster]
         symbol_entropy_array = symbol_entropy_arrays[selected_cluster]
         
