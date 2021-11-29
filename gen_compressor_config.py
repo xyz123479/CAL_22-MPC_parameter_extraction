@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 from tqdm.auto import tqdm
+import pickle
 
 import argparse
 
@@ -80,6 +81,8 @@ def main(args):
     dataset_path = args.dataset
     label_path = args.label
     output_dir_path = args.output
+    compression_filter_path = os.path.join(output_dir_path, "compression_filters.pickle")
+    scan_result_path = os.path.join(output_dir_path, "scan_path.pickle")
 
     # load data
     print("Loading dataset...")
@@ -90,10 +93,16 @@ def main(args):
     symbol_entropy_arrays = compute_symbol_entropy(data_classes)
     # generate filters with MST algorithm
     compression_filters = make_filters(weight_entropy_arrays, symbol_entropy_arrays)
+    # save
+    with open (compression_filter_path, "wb") as f:
+        pickle.dump(compression_filters, f)
     print('Filters are generated')
 
     # zero scan path generation
     scan_path = generate_scan_path(data_classes, compression_filters)
+    # save
+    with open (scan_result_path, "wb") as f:
+        pickle.dump(scan_path, f)
     print('Scan path generated')
 
     # config generation
