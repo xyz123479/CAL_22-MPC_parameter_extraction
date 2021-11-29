@@ -53,10 +53,6 @@ def get_data_and_label(dataset_path, label_path):
     data = np.load(dataset_path).astype(np.uint8)
     labels = np.load(label_path)
 
-#     non_zero_indices = np.where(data.any(axis=1))[0]
-#     data = data[non_zero_indices]
-#     labels = labels[non_zero_indices] + 1
-
     @njit
     def get_labels(data, labels):
         new_labels = List()
@@ -95,10 +91,8 @@ def sort_lines_by_class(data, labels):
     data_classes = {}
     for selected_class in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         print("Sorting class #%2d / %d..." %(selected_class, NUM_CLUSTERS), end='\r')
-        data_classes[selected_class] = data[labels[labels == selected_class]]
-#         data_classes[selected_class] = np.array(sort_lines_numba(data, labels, selected_class), dtype=np.uint8)
+        data_classes[selected_class] = data[labels == selected_class]
     print()
-    return data_classes
 
 # @njit
 # def sort_lines_numba(lines, labels, selected_labels):
