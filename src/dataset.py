@@ -93,7 +93,7 @@ def get_data_and_label(dataset_path, label_path):
 
 def sort_lines_by_class(data, labels):
     data_classes = {}
-    for selected_class in range(1, NUM_CLUSTERS - 1):
+    for selected_class in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         print("Sorting class #%2d / %d..." %(selected_class, NUM_CLUSTERS), end='\r')
         data_classes[selected_class] = data[labels[labels == selected_class]]
 #         data_classes[selected_class] = np.array(sort_lines_numba(data, labels, selected_class), dtype=np.uint8)
