@@ -93,6 +93,7 @@ def sort_lines_by_class(data, labels):
         print("Sorting class #%2d / %d..." %(selected_class, NUM_CLUSTERS), end='\r')
         data_classes[selected_class] = data[labels == selected_class]
     print()
+    return data_classes
 
 # @njit
 # def sort_lines_numba(lines, labels, selected_labels):
