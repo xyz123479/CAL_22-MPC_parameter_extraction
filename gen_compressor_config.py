@@ -5,6 +5,7 @@ from tqdm.auto import tqdm
 import pickle
 
 import argparse
+from datetime import datetime
 
 from src import *
 
@@ -77,12 +78,16 @@ def load_data(dataset_path, label_path):
     return data_classes
 
 def main(args):
+    today = datetime.today().strftime("%y%m%d")
+
     # path
     dataset_path = args.dataset
     label_path = args.label
     output_dir_path = args.output
-    compression_filter_path = os.path.join(output_dir_path, "compression_filters.pickle")
-    scan_result_path = os.path.join(output_dir_path, "scan_path.pickle")
+    compression_filter_path = os.path.join(output_dir_path,
+            "%s_compression_filters.pickle" %(today))
+    scan_result_path = os.path.join(output_dir_path,
+            "%s_scan_path.pickle" %(today))
 
     # load data
     print("Loading dataset...")
@@ -107,7 +112,9 @@ def main(args):
 
     # config generation
     compressor_config = make_config(compression_filters, scan_path)
-    with open(output_dir_path + '/compressor_config.json', 'w') as json_f:
+    json_output_path = os.path.join(output_dir_path,
+            "%s_compressor_config.json" %(today))
+    with open(json_output_path, 'w') as json_f:
         json.dump(compressor_config, json_f, cls=NpEncoder)
     print('Config is converted to json format')
     

@@ -102,7 +102,7 @@ def weight_PredModule(root_idx, base_idx_table, weight_table,
     return module_spec
 
 def make_config(compression_tables, scan_tables):
-    num_modules = len(compression_tables) + 1
+    num_modules = NUM_CLUSTERS - 1
     
     # base config
     config = {
@@ -122,7 +122,7 @@ def make_config(compression_tables, scan_tables):
     }
     
     # add PredCompModules
-    for selected_module in range(NUM_FIRST_CLUSTER, num_modules):
+    for selected_module in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         root_idx = compression_tables[selected_module]['root_idx']
         base_idx_table = compression_tables[selected_module]['base_idx_table']
         weight_table = compression_tables[selected_module]['weight_table']
