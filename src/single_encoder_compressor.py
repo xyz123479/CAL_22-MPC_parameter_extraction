@@ -45,7 +45,7 @@ class SingleEncoderCompressor():
             if modules[num_module]['name'] == 'AllZero':
                 self.comp_modules[int(num_module)] = AllZero_Module(num_module, self.linesize, self.symbolsize)
                 
-            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module] == 'AllWordSame':
+            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module]['name'] == 'AllWordSame':
                 self.comp_modules[int(num_module)] = AllWordSame_Module(num_module, self.linesize, self.symbolsize)
                 
             elif modules[num_module]['name'] == 'PredComp':
@@ -95,10 +95,20 @@ class SingleEncoderCompressor():
         if size == 0:
             result = {
                 'original_size' : self.uncompressed_linesize,
-#                 'compressed_size' : size + self.encoding_bits[0],
-                'compressed_size' : size + 3,
+                'compressed_size' : size + self.encoding_bits[0],
                 'codeword' : codeword,
                 'selected_class' : 0,
+            }
+            return result
+
+        ## allwordsame
+        size, codeword = self.comp_modules[1](dataline)
+        if size == 4 * self.symbolsize:
+            result = {
+                'original_size' : self.uncompressed_linesize,
+                'compressed_size' : size + self.encoding_bits[1],
+                'codeword' : codeword,
+                'selected_class' : 1,
             }
             return result
         
@@ -106,7 +116,7 @@ class SingleEncoderCompressor():
         maxConsecZeros = 0
         selectedComp = -1
 #         scanned_arrays = {}
-        for number in range(1, NUM_CLUSTERS-1):
+        for number in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS-1):
             scanned_array = self.comp_modules[number](dataline)
 #             scanned_arrays[number] = scanned_array
             
@@ -121,14 +131,16 @@ class SingleEncoderCompressor():
                 selectedComp = number
                 maxConsecZeros = consecZeros
         size, codeword = self.fpc_module(selected_scanned_array)
+
+        ## uncomp
         if size >= 256:
             size = self.uncompressed_linesize
             codeword = np.unpackbits(dataline)
-            selectedComp = NUM_CLUSTERS-1
+            selectedComp = -1
         
         result = {
             'original_size' : self.uncompressed_linesize,
-            'compressed_size' : size + 3,
+            'compressed_size' : size + self.encoding_bits[selectedComp],
             'codeword' : codeword,
             'selected_class' : selectedComp,
         }
