@@ -13,6 +13,8 @@ parser = argparse.ArgumentParser('VPC: General Pattern Search. Config generator'
 parser.add_argument('dataset', type=str, help='Dataset path')
 parser.add_argument('label', type=str, help='Cluster label path with respect to the given dataset')
 parser.add_argument('output', type=str, help='Save directory path of filters json file')
+parser.add_argument('-f', '--filter-path', type=str, required=False, help='Compression filter path. If it is given, weight/symbol entropy computation will be skipped.')
+parser.add_argument('-s', '--scan-path', type=str, required=False, help='Scan path. If it is given, scan path searching will be skipped.')
 try:
     args = parser.parse_args()
 except argparse.ArgumentError as e:
@@ -75,6 +77,16 @@ def load_data(dataset_path, label_path):
     # dataset
     data, labels = get_data_and_label(dataset_path, label_path)
     data_classes = sort_lines_by_class(data, labels)
+
+    # if class is empty, fill a dummy dataline
+    for num_class in data_classes:
+        if (len(data_classes[num_class]) != 0):
+            linesize = data_classes[num_class].shape[1]
+            assert (linesize == LINESIZE)
+            break
+    for num_class in data_classes:
+        if (len(data_classes[num_class]) == 0):
+            data_classes[num_class] = np.zeros(shape=(1, linesize), dtype=np.uint8)
     return data_classes
 
 def main(args):
@@ -93,22 +105,34 @@ def main(args):
     print("Loading dataset...")
     data_classes = load_data(dataset_path, label_path)
     
-    # compute entropy
-    weight_entropy_arrays = compute_weight_entropy(data_classes)
-    symbol_entropy_arrays = compute_symbol_entropy(data_classes)
-    # generate filters with MST algorithm
-    compression_filters = make_filters(weight_entropy_arrays, symbol_entropy_arrays)
-    # save
-    with open (compression_filter_path, "wb") as f:
-        pickle.dump(compression_filters, f)
-    print('Filters are generated')
+    if args.filter_path is None:
+        # compute entropy
+        weight_entropy_arrays = compute_weight_entropy(data_classes)
+        symbol_entropy_arrays = compute_symbol_entropy(data_classes)
+        # generate filters with MST algorithm
+        compression_filters = make_filters(weight_entropy_arrays, symbol_entropy_arrays)
+        # save
+        with open (compression_filter_path, "wb") as f:
+            pickle.dump(compression_filters, f)
+            print("Filters are saved")
+        print('Filters are generated')
+    else:
+        with open (args.filter_path, "rb") as f:
+            compression_filters = pickle.load(f)
+            print("Filters are loaded")
 
-    # zero scan path generation
-    scan_path = generate_scan_path(data_classes, compression_filters)
-    # save
-    with open (scan_result_path, "wb") as f:
-        pickle.dump(scan_path, f)
-    print('Scan path generated')
+    if args.scan_path is None:
+        # zero scan path generation
+        scan_path = generate_scan_path(data_classes, compression_filters)
+        # save
+        with open (scan_result_path, "wb") as f:
+            pickle.dump(scan_path, f)
+            print("Scan path are saved")
+        print('Scan path generated')
+    else:
+        with open (args.scan_path, "rb") as f:
+            scan_path = pickle.load(f)
+            print("Scan path are loaded")
 
     # config generation
     compressor_config = make_config(compression_filters, scan_path)

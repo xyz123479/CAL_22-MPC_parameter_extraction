@@ -45,7 +45,7 @@ class Compressor():
             if modules[num_module]['name'] == 'AllZero':
                 self.comp_modules[int(num_module)] = AllZero_Module(num_module, self.linesize, self.symbolsize)
                 
-            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module] == 'AllWordSame':
+            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module]['name'] == 'AllWordSame':
                 self.comp_modules[int(num_module)] = AllWordSame_Module(num_module, self.linesize, self.symbolsize)
                 
             elif modules[num_module]['name'] == 'PredComp':
