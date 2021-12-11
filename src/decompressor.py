@@ -47,7 +47,7 @@ class Decompressor():
             if modules[num_module]['name'] == 'AllZero':
                 self.decomp_modules[int(num_module)] = DeAllZero_Module(num_module, self.linesize, self.symbolsize)
                 
-            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module] == 'AllWordSame':
+            elif modules[num_module]['name'] == 'ByteplaneAllSame' or modules[num_module]['name'] == 'AllWordSame':
                 self.decomp_modules[int(num_module)] = DeAllWordSame_Module(num_module, self.linesize, self.symbolsize)
                 
             elif modules[num_module]['name'] == 'PredComp':

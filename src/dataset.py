@@ -5,8 +5,8 @@ from numba.typed import List
 
 from src.const import *
 
-# get dataset witout allzero
-def get_data(dataset_path, remove_allzeros=True):
+# get dataset witout allzero and allwordsame
+def get_data(dataset_path, remove_allzeros=True, remove_allwordsame=True):
     data = np.load(dataset_path).astype(np.uint8)
 
     @njit
