@@ -150,7 +150,7 @@ def make_table(weight_entropy_array, symbol_entropy_array, top=LINESIZE, order='
 
             unique = weight_entropy_array[target_idx][base_idx]['unique']
             counts = weight_entropy_array[target_idx][base_idx]['counts']
-            high_prob_weight[target_idx, base_idx] = unique[counts.argmax()]
+            high_prob_weight[target_idx, base_idx] = unique[np.argmax(counts)]
     
     # assign symbol entropy array
     symbol_entropy = np.zeros(LINESIZE)

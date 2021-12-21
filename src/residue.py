@@ -31,7 +31,7 @@ def batched_compute_residue(data, compression_table, batch_size=65536, device="c
 
         # batched matrix[Bx1xN] x broadcasted matrix[NxN]
         #   = batched matrix[Bx1xN]
-        lines = torch.unsqueeze(lines, dim=1)
+        lines = torch.unsqueeze(minibatch, dim=1).float()
         preds = torch.matmul(lines, predict_mat)
         preds = preds.squeeze().type(minibatch.dtype)
 
@@ -84,6 +84,7 @@ def compute_residue(data, compression_table, sel_cluster):
     description = 'Computing residue-%2d/%2d' %(sel_cluster, NUM_CLUSTERS)
     p_bar = tqdm(total=len(data), desc=description, ncols=150)
     for line in data:
+        line = line.numpy()
         pred = predict(line, base_idx_table, weight_table, root_idx)
         
         line_without_root = np.concatenate((line[:root_idx], line[root_idx+1:]))
