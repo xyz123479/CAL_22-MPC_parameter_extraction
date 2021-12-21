@@ -9,6 +9,9 @@ from datetime import datetime
 
 from src import *
 
+BATCH_SIZE=65536
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 parser = argparse.ArgumentParser('VPC: General Pattern Search. Config generator')
 parser.add_argument('dataset', type=str, help='Dataset path')
 parser.add_argument('label', type=str, help='Cluster label path with respect to the given dataset')
@@ -23,24 +26,43 @@ except argparse.ArgumentError as e:
     print(parser.print_help())
 
 ## functions
+def load_data(dataset_path, label_path):
+    # dataset
+    data, labels = get_data_and_label(dataset_path, label_path)
+    data_classes = sort_lines_by_class(data, labels)
+
+    # check linesize before start
+    for num_class in data_classes:
+        if (len(data_classes[num_class]) != 0):
+            linesize = data_classes[num_class].shape[1]
+            assert (linesize == LINESIZE)
+
+    # if class is empty, fill a dummy dataline
+    for num_class in data_classes:
+        if (len(data_classes[num_class]) == 0):
+            data_classes[num_class] = np.zeros(shape=(1, linesize), dtype=np.uint8)
+
+    # converts ndarray to tensor
+    for num_class in data_classes:
+        data_classes[num_class] = torch.from_numpy(data_classes[num_class])
+    return data_classes
+
 def compute_weight_entropy(data_classes):
     entropy_arrays = {}
-    p_bar = tqdm(total = NUM_TYPES * LINESIZE * LINESIZE, desc='Computing weight entropy', ncols=150)
     for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         selected_cluster_data = data_classes[selected_cluster]
-        entropy_array = compute_entropy_by_weight(selected_cluster_data, rounding_fn=power2(), p_bar=p_bar)
+        entropy_array = compute_entropy_by_weight(selected_cluster_data, rounding_fn=power2(),
+                batch_size=BATCH_SIZE, device=DEVICE)
         entropy_arrays[selected_cluster] = entropy_array
-    p_bar.close()
     return entropy_arrays
 
 def compute_symbol_entropy(data_classes):
     entropy_arrays = {}
-    p_bar = tqdm(total = NUM_TYPES * LINESIZE, desc='Computing symbol entropy', ncols=150)
     for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
         selected_cluster_data = data_classes[selected_cluster]
-        entropy_array = compute_entropy_by_symbols(selected_cluster_data, p_bar)
+        entropy_array = compute_entropy_by_symbols(selected_cluster_data,
+                batch_size=BATCH_SIZE, device=DEVICE)
         entropy_arrays[selected_cluster] = entropy_array
-    p_bar.close()
     return entropy_arrays
 
 def make_filters(weight_entropy_arrays, symbol_entropy_arrays):
@@ -57,37 +79,25 @@ def make_filters(weight_entropy_arrays, symbol_entropy_arrays):
         }
     return compression_filters
 
-def generate_scan_path(data_classes, compression_filters):
+def generate_residue(data_classes, compression_filters):
     # make residue
-    residue_array = {}
+    residue_arrays = {}
     for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
-        residue_array[selected_cluster] = compute_residue(
+        residue_array = compute_residue(
             data_classes[selected_cluster], compression_filters[selected_cluster],
-            selected_cluster).astype(np.uint8)
+            batch_size=BATCH_SIZE, device=DEVICE)
+        residue_arrays[selected_cluster] = residue_array
+    return residue_arrays
+
+def generate_scan_path(residue_arrays):
     # find scan route
     scan_index_array = {}
     for selected_cluster in range(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1):
-        residue = residue_array[selected_cluster]
+        residue = residue_arrays[selected_cluster]
         DBP = BPX(residue, consecutive_xor=True)
-        scan_index = phi_scan(DBP, selected_cluster)
+        scan_index = phi_scan(DBP, batch_size=BATCH_SIZE, device=DEVICE)
         scan_index_array[selected_cluster] = scan_index
     return scan_index_array
-
-def load_data(dataset_path, label_path):
-    # dataset
-    data, labels = get_data_and_label(dataset_path, label_path)
-    data_classes = sort_lines_by_class(data, labels)
-
-    # if class is empty, fill a dummy dataline
-    for num_class in data_classes:
-        if (len(data_classes[num_class]) != 0):
-            linesize = data_classes[num_class].shape[1]
-            assert (linesize == LINESIZE)
-            break
-    for num_class in data_classes:
-        if (len(data_classes[num_class]) == 0):
-            data_classes[num_class] = np.zeros(shape=(1, linesize), dtype=np.uint8)
-    return data_classes
 
 def main(args):
     today = datetime.today().strftime("%y%m%d")
@@ -122,20 +132,24 @@ def main(args):
             print("Filters are loaded")
 
     if args.scan_path is None:
-        # zero scan path generation
-        scan_path = generate_scan_path(data_classes, compression_filters)
+        # residue
+        residue_arrays = generate_residue(data_classes, compression_filters)
+
+        # zero ordering path search
+        scan_index_array = generate_scan_path(residue_arrays)
+
         # save
         with open (scan_result_path, "wb") as f:
-            pickle.dump(scan_path, f)
+            pickle.dump(scan_index_array, f)
             print("Scan path are saved")
         print('Scan path generated')
     else:
         with open (args.scan_path, "rb") as f:
-            scan_path = pickle.load(f)
+            scan_index_array = pickle.load(f)
             print("Scan path are loaded")
 
     # config generation
-    compressor_config = make_config(compression_filters, scan_path)
+    compressor_config = make_config(compression_filters, scan_index_array)
     json_output_path = os.path.join(output_dir_path,
             "%s_compressor_config.json" %(today))
     with open(json_output_path, 'w') as json_f:
@@ -145,9 +159,4 @@ def main(args):
 if __name__ == '__main__':
     main(args)
     
-
-
-
-
-
 

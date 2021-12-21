@@ -24,50 +24,6 @@ def BPX(data, consecutive_xor=True):
     bit_plane = torch.from_numpy(bit_plane)
     return bit_plane
 
-def phi_scan(data, sel_cluster):
-    num_lines = len(data)
-    rows = data.shape[1]
-    cols = data.shape[2]
-
-    index_checklist = np.zeros(shape=(rows, cols), dtype=int)
-    scanned_rows = []
-    scanned_cols = []
-
-    description = 'Computing scan route-%2d/%2d' %(sel_cluster, NUM_CLUSTERS)
-    p_bar = tqdm(total = rows * cols, desc=description, ncols=150)
-
-    # start index
-    one_count_table = np.count_nonzero(data, axis=0)
-    zero_count_table = num_lines - one_count_table
-    start_index = np.unravel_index(np.argmax(zero_count_table, axis=None), zero_count_table.shape)
-
-    index_checklist[start_index] = 1
-    scanned_rows.append(start_index[0])  # scanned row
-    scanned_cols.append(start_index[1])  # scanned col
-    p_bar.update(1)
-
-    # scan index
-    prev_index = start_index
-    for _ in range(rows * cols - 1):
-        base_zero_data = data[data[:, prev_index[0], prev_index[1]] == 0]
-        num_lines = len(base_zero_data)
-        one_count_table = np.count_nonzero(base_zero_data, axis=0)
-        zero_count_table = num_lines - one_count_table
-
-        sorted_index = np.unravel_index(np.argsort(zero_count_table, axis=None)[::-1], zero_count_table.shape)
-        for i in range(len(sorted_index[0])):
-            index = (sorted_index[0][i], sorted_index[1][i])
-            if index_checklist[index] == 0:
-                index_checklist[index] = 1
-                scanned_rows.append(index[0])  # scanned row
-                scanned_cols.append(index[1])  # scanned col
-                prev_index = index
-                break
-        p_bar.update(1)
-
-    p_bar.close()
-    return (scanned_rows, scanned_cols)
-    
 def search_idx(data, batch_size, device):
     num_lines = len(data)
     rows = data.shape[1]
@@ -85,7 +41,7 @@ def search_idx(data, batch_size, device):
             np.argsort(total_zero_count_table, axis=None)[::-1], total_zero_count_table.shape)
     return sorted_index
 
-def batched_phi_scan(data, batch_size=65536, device="cpu"):
+def phi_scan(data, batch_size=65536, device="cpu"):
     num_lines = len(data)
     rows = data.shape[1]
     cols = data.shape[2]
