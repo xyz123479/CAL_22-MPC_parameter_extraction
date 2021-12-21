@@ -28,9 +28,7 @@ class UniqueCount(object):
         if is_weight:
             for i in range(self.dtype_range):
                 for j in range(self.dtype_range):
-                    i = 1 if (i == 0) else i
-                    j = 1 if (j == 0) else j
-                    unique = i / j
+                    unique = i / (j + 1e-9)
                     if self.rounding_fn is not None:
                         unique = self.rounding_fn.computeScalar(unique)
                     self.all_uniques[unique] = 0
@@ -71,7 +69,7 @@ class power2:
         
     def __call__(self, data):
         sign_array = torch.sign(data)
-        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data))))
+        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data) + 1e-9)))
 
         powered_array[powered_array < 1 / self.prec] = 0
         powered_array[powered_array > self.prec] = self.prec
@@ -80,7 +78,7 @@ class power2:
 
     def computeScalar(self, data):
         sign = 1 if data >= 0 else -1
-        powered = np.exp2(np.round(np.log2(np.abs(data))))
+        powered = np.exp2(np.round(np.log2(np.abs(data) + 1e-9)))
 
         powered = 0 if powered < 1 / self.prec else powered
         powered = self.prec if powered > self.prec else powered
@@ -122,10 +120,10 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
     for minibatch in iter_batch(data, batch_size):
         minibatch = minibatch.to(device)
         # TODO: 1로 바꾸지말고 나누기할때 작은 값 더하기
-        minibatch[minibatch == 0] = 1
+#         minibatch[minibatch == 0] = 1
         for target_col_idx in range(LINESIZE):
             # target = weight * base
-            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / minibatch
+            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch + 1e-9)
             
             if rounding_fn is not None:
                 weight_data = rounding_fn(weight_data)
