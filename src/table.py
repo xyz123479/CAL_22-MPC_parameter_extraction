@@ -1,8 +1,68 @@
+from operator import itemgetter
+
+import torch
 import numpy as np
 import networkx as nx
 from scipy import stats
 
 from src.const import *
+
+from tqdm.auto import tqdm
+
+##### utils
+def iter_batch(iterable, n=1):
+    l = len(iterable)
+    for idx in range(0, l, n):
+        yield iterable[idx:min(idx + n, l)]
+
+##### unique_counts
+class UniqueCount(object):
+    def __init__(self, dtype, is_weight, rounding_fn=None, device="cpu"):
+#         assert isinstance(dtype, torch.dtype)
+#         self.dtype = dtype
+        self.dtype_range = 256
+        self.rounding_fn = rounding_fn
+
+        # a dict of all unique value and its index
+        self.all_uniques = {}
+        if is_weight:
+            for i in range(self.dtype_range):
+                for j in range(self.dtype_range):
+                    i = 1 if (i == 0) else i
+                    j = 1 if (j == 0) else j
+                    unique = i / j
+                    if self.rounding_fn is not None:
+                        unique = self.rounding_fn.computeScalar(unique)
+                    self.all_uniques[unique] = 0
+        else:
+            for unique in range(self.dtype_range):
+                self.all_uniques[unique] = 0
+
+        # key is unique value, value is index of unique_counts
+        for i, key in enumerate(self.all_uniques):
+            self.all_uniques[key] = i
+
+        self.unique_counts = torch.zeros((LINESIZE, LINESIZE, len(self.all_uniques)),
+                dtype=int, device=device)
+
+    def update(self, target_idx, base_idx, data):
+        unique, counts = torch.unique(data, return_counts=True)
+        unique = unique.tolist()
+        unique_indices = itemgetter(*unique)(self.all_uniques)
+        self.unique_counts[target_idx, base_idx, unique_indices] = self.unique_counts[target_idx, base_idx, unique_indices] + counts
+
+    def get(self, target_idx, base_idx):
+        unique_counts = self.unique_counts[target_idx, base_idx, :].cpu().numpy()
+
+        uniques_to_return = []
+        counts_to_return = []
+        for idx, count in enumerate(unique_counts):
+            if (count != 0):
+                counts_to_return.append(count)
+                for unique, i in self.all_uniques.items():
+                    if idx == i:
+                        uniques_to_return.append(unique)
+        return uniques_to_return, counts_to_return
 
 ##### Weight entropy
 class power2:
@@ -10,79 +70,110 @@ class power2:
         self.prec = prec
         
     def __call__(self, data):
-        sign_array = np.sign(data)
-        powered_array = np.exp2(np.round(np.log2(np.abs(data))))
+        sign_array = torch.sign(data)
+        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data))))
 
         powered_array[powered_array < 1 / self.prec] = 0
         powered_array[powered_array > self.prec] = self.prec
 
         return powered_array * sign_array
 
+    def computeScalar(self, data):
+        sign = 1 if data >= 0 else -1
+        powered = np.exp2(np.round(np.log2(np.abs(data))))
+
+        powered = 0 if powered < 1 / self.prec else powered
+        powered = self.prec if powered > self.prec else powered
+
+        return sign * powered
+
+
 class rounding:
     def __init__(self, decimal=-4):
         self.decimal = decimal
         
     def __call__(self, data):
-        return np.around(data, decimals=self.decimal)
+        return torch.round(data * 10**self.decimal) / (10**self.decimal)
     
 class quantizing:
     def __init__(self, prec=64):
         self.prec = prec
-        self.bins = np.arange(0, 256, 1/prec)
+        self.bins = torch.arange(0, 256, 1/prec)
         
     def __call__(self, data):
-        indices = np.digitize(data, self.bins)
-        return self.bins[indices-1]
+        indices = torch.bucketize(data, self.bins)
+        return self.bins[indices-1].to(data.device)
 
-def compute_entropy_by_weight(data, rounding_fn=None, p_bar=None):
+def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="cuda"):
+    # init unique_counts
+    # target_col_idx, base_col_idx, unique_idx
+    unique_count = UniqueCount(data.dtype, True, rounding_fn, device)
+
     # change zero value to one
     # zero cannot be denominator, so change it into the closest value which is one
-    data[data == 0] = 1
-    data = data.astype(float)
-    
+    data = data.float()
+
+    # init entropy_array
     entropy_array = {}
     for idx in range(LINESIZE):
         entropy_array[idx] = {}
     
+    p_bar = tqdm(total = len(data), desc="Computing weight entropy", ncols=150)
+    for minibatch in iter_batch(data, batch_size):
+        minibatch = minibatch.to(device)
+        # TODO: 1로 바꾸지말고 나누기할때 작은 값 더하기
+        minibatch[minibatch == 0] = 1
+        for target_col_idx in range(LINESIZE):
+            # target = weight * base
+            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / minibatch
+            
+            if rounding_fn is not None:
+                weight_data = rounding_fn(weight_data)
+                
+            for base_col_idx in range(LINESIZE):
+                col_weights = weight_data[:, base_col_idx]
+                unique_count.update(target_col_idx, base_col_idx, col_weights)
+        p_bar.update(len(minibatch)) 
+    p_bar.close()
+
     for target_col_idx in range(LINESIZE):
-        # target = weight * base
-        weight_data = np.expand_dims(data[:, target_col_idx], -1) / data
-        
-        if rounding_fn is not None:
-            weight_data = rounding_fn(weight_data)
-            
         for base_col_idx in range(LINESIZE):
-            col_weights = weight_data[:, base_col_idx]
-            unique, counts = np.unique(col_weights, return_counts=True)
+            unique, counts = unique_count.get(target_col_idx, base_col_idx)
             col_entropy = stats.entropy(counts, base=2)
-            
             entropy_array[target_col_idx][base_col_idx] = {
                 'entropy' : col_entropy,
                 'unique'  : unique,
                 'counts'  : counts,
             }
-            if p_bar is not None:
-                p_bar.update(1)
             
     return entropy_array
 
-def compute_entropy_by_symbols(data, p_bar=None):
-    entropy_array = {}
-    entropy_array[0] = {}
-        
-    for col_idx in range(LINESIZE):
-        col_symbols = data[:, col_idx]
-        unique, counts = np.unique(col_symbols, return_counts=True)
-        col_entropy = stats.entropy(counts, base=2)
+def compute_entropy_by_symbols(data, batch_size=65536, device="cuda"):
+    # init unique_counts
+    # target_col_idx, base_col_idx, unique_idx
+    unique_count = UniqueCount(data.dtype, False, None, device)
 
+    entropy_array = {}
+    for idx in range(LINESIZE):
+        entropy_array[idx] = {}
+        
+    p_bar = tqdm(total = len(data), desc="Computing symbol entropy", ncols=150)
+    for minibatch in iter_batch(data, batch_size):
+        minibatch = minibatch.to(device)
+        for col_idx in range(LINESIZE):
+            col_symbols = minibatch[:, col_idx]
+            unique_count.update(0, col_idx, col_symbols)
+        p_bar.update(len(minibatch))
+    p_bar.close()
+
+    for col_idx in range(LINESIZE):
+        unique, counts = unique_count.get(0, col_idx)
+        col_entropy = stats.entropy(counts, base=2)
         entropy_array[0][col_idx] = {
             'entropy' : col_entropy,
             'unique'  : unique,
             'counts'  : counts,
         }
-        if p_bar is not None:
-            p_bar.update(1)
-
     return entropy_array
 
 ## Converts to fully connected indirected graph
