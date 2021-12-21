@@ -6,21 +6,14 @@ import networkx as nx
 from scipy import stats
 
 from src.const import *
+from src.utils import *
 
 from tqdm.auto import tqdm
-
-##### utils
-def iter_batch(iterable, n=1):
-    l = len(iterable)
-    for idx in range(0, l, n):
-        yield iterable[idx:min(idx + n, l)]
 
 ##### unique_counts
 class UniqueCount(object):
     def __init__(self, dtype, is_weight, rounding_fn=None, device="cpu"):
-#         assert isinstance(dtype, torch.dtype)
-#         self.dtype = dtype
-        self.dtype_range = 256
+        self.dtype_range = DTYPE_RANGE
         self.rounding_fn = rounding_fn
 
         # a dict of all unique value and its index
@@ -28,7 +21,7 @@ class UniqueCount(object):
         if is_weight:
             for i in range(self.dtype_range):
                 for j in range(self.dtype_range):
-                    unique = i / (j + 1e-9)
+                    unique = i / (j + MIN_VAL)
                     if self.rounding_fn is not None:
                         unique = self.rounding_fn.computeScalar(unique)
                     self.all_uniques[unique] = 0
@@ -62,54 +55,10 @@ class UniqueCount(object):
                         uniques_to_return.append(unique)
         return uniques_to_return, counts_to_return
 
-##### Weight entropy
-class power2:
-    def __init__(self, prec=256):
-        self.prec = prec
-        
-    def __call__(self, data):
-        sign_array = torch.sign(data)
-        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data) + 1e-9)))
-
-        powered_array[powered_array < 1 / self.prec] = 0
-        powered_array[powered_array > self.prec] = self.prec
-
-        return powered_array * sign_array
-
-    def computeScalar(self, data):
-        sign = 1 if data >= 0 else -1
-        powered = np.exp2(np.round(np.log2(np.abs(data) + 1e-9)))
-
-        powered = 0 if powered < 1 / self.prec else powered
-        powered = self.prec if powered > self.prec else powered
-
-        return sign * powered
-
-
-class rounding:
-    def __init__(self, decimal=-4):
-        self.decimal = decimal
-        
-    def __call__(self, data):
-        return torch.round(data * 10**self.decimal) / (10**self.decimal)
-    
-class quantizing:
-    def __init__(self, prec=64):
-        self.prec = prec
-        self.bins = torch.arange(0, 256, 1/prec)
-        
-    def __call__(self, data):
-        indices = torch.bucketize(data, self.bins)
-        return self.bins[indices-1].to(data.device)
-
-def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="cuda"):
+def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="cpu"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
     unique_count = UniqueCount(data.dtype, True, rounding_fn, device)
-
-    # change zero value to one
-    # zero cannot be denominator, so change it into the closest value which is one
-    data = data.float()
 
     # init entropy_array
     entropy_array = {}
@@ -118,12 +67,14 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
     
     p_bar = tqdm(total = len(data), desc="Computing weight entropy", ncols=150)
     for minibatch in iter_batch(data, batch_size):
-        minibatch = minibatch.to(device)
-        # TODO: 1로 바꾸지말고 나누기할때 작은 값 더하기
+        minibatch = minibatch.float().to(device)
+
+#         # change zero value to one
+#         # zero cannot be denominator, so change it into the closest value which is one
 #         minibatch[minibatch == 0] = 1
         for target_col_idx in range(LINESIZE):
             # target = weight * base
-            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch + 1e-9)
+            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch + MIN_VAL)
             
             if rounding_fn is not None:
                 weight_data = rounding_fn(weight_data)
@@ -146,7 +97,7 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
             
     return entropy_array
 
-def compute_entropy_by_symbols(data, batch_size=65536, device="cuda"):
+def compute_entropy_by_symbols(data, batch_size=65536, device="cpu"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
     unique_count = UniqueCount(data.dtype, False, None, device)
