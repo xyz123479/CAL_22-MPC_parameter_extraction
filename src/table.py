@@ -21,7 +21,9 @@ class UniqueCount(object):
         if is_weight:
             for i in range(self.dtype_range):
                 for j in range(self.dtype_range):
-                    unique = i / (j + MIN_VAL)
+                    if j == 0: continue
+#                     unique = i / (j + MIN_VAL)
+                    unique = i / j
                     if self.rounding_fn is not None:
                         unique = self.rounding_fn.computeScalar(unique)
                     self.all_uniques[unique] = 0
@@ -71,10 +73,11 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
 
 #         # change zero value to one
 #         # zero cannot be denominator, so change it into the closest value which is one
-#         minibatch[minibatch == 0] = 1
+        minibatch[minibatch == 0] = 1
         for target_col_idx in range(LINESIZE):
             # target = weight * base
-            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch + MIN_VAL)
+#             weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch + MIN_VAL)
+            weight_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch)
             
             if rounding_fn is not None:
                 weight_data = rounding_fn(weight_data)

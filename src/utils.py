@@ -16,7 +16,8 @@ class power2:
         
     def __call__(self, data):
         sign_array = torch.sign(data)
-        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data) + MIN_VAL)))
+#         powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data) + MIN_VAL)))
+        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data))))
 
         powered_array[powered_array < 1 / self.prec] = 0
         powered_array[powered_array > self.prec] = self.prec
@@ -25,7 +26,8 @@ class power2:
 
     def computeScalar(self, data):
         sign = 1 if data >= 0 else -1
-        powered = np.exp2(np.round(np.log2(np.abs(data) + MIN_VAL)))
+#         powered = np.exp2(np.round(np.log2(np.abs(data) + MIN_VAL)))
+        powered = np.exp2(np.round(np.log2(np.abs(data))))
 
         powered = 0 if powered < 1 / self.prec else powered
         powered = self.prec if powered > self.prec else powered
