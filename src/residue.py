@@ -17,7 +17,9 @@ def get_predict_matrix(root_idx, base_idx_table, weight_table, device="cpu"):
 
     return predict_mat
 
-def compute_residue(data, compression_table, batch_size=65536, device="cpu"):
+def compute_residue(data, compression_table,
+        batch_size=65536, device="cpu",
+        desc="Computing residue"):
     root_idx = compression_table['root_idx']
     base_idx_table = compression_table['base_idx_table']
     weight_table = compression_table['weight_table']
@@ -25,7 +27,7 @@ def compute_residue(data, compression_table, batch_size=65536, device="cpu"):
     predict_mat = get_predict_matrix(root_idx, base_idx_table, weight_table, device)
 
     residues = []
-    p_bar = tqdm(total = len(data), desc="Computing residue", ncols=150)
+    p_bar = tqdm(total = len(data), desc=desc, ncols=TQDM_COLS, leave=False, position=1)
     for minibatch in iter_batch(data, batch_size):
         minibatch = minibatch.to(device)
 

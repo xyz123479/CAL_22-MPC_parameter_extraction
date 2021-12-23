@@ -21,7 +21,7 @@ class UniqueCount(object):
         if is_weight:
             for i in range(self.dtype_range):
                 for j in range(self.dtype_range):
-                    if j == 0: continue
+                    if i == 0 or j == 0: continue
 #                     unique = i / (j + MIN_VAL)
                     unique = i / j
                     if self.rounding_fn is not None:
@@ -57,7 +57,9 @@ class UniqueCount(object):
                         uniques_to_return.append(unique)
         return uniques_to_return, counts_to_return
 
-def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="cpu"):
+def compute_entropy_by_weight(data, rounding_fn=None,
+        batch_size=65536, device="cpu",
+        desc="Computing Weight Entropy"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
     unique_count = UniqueCount(data.dtype, True, rounding_fn, device)
@@ -67,7 +69,7 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
     for idx in range(LINESIZE):
         entropy_array[idx] = {}
     
-    p_bar = tqdm(total = len(data), desc="Computing weight entropy", ncols=150)
+    p_bar = tqdm(total = len(data), desc=desc, ncols=TQDM_COLS, leave=False, position=1)
     for minibatch in iter_batch(data, batch_size):
         minibatch = minibatch.float().to(device)
 
@@ -100,7 +102,8 @@ def compute_entropy_by_weight(data, rounding_fn=None, batch_size=65536, device="
             
     return entropy_array
 
-def compute_entropy_by_symbols(data, batch_size=65536, device="cpu"):
+def compute_entropy_by_symbols(data, batch_size=65536, device="cpu",
+        desc="Computing Symbol Entropy"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
     unique_count = UniqueCount(data.dtype, False, None, device)
@@ -109,7 +112,7 @@ def compute_entropy_by_symbols(data, batch_size=65536, device="cpu"):
     for idx in range(LINESIZE):
         entropy_array[idx] = {}
         
-    p_bar = tqdm(total = len(data), desc="Computing symbol entropy", ncols=150)
+    p_bar = tqdm(total = len(data), desc=desc, ncols=TQDM_COLS, leave=False, position=1)
     for minibatch in iter_batch(data, batch_size):
         minibatch = minibatch.to(device)
         for col_idx in range(LINESIZE):

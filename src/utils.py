@@ -27,6 +27,7 @@ class power2:
     def computeScalar(self, data):
         sign = 1 if data >= 0 else -1
 #         powered = np.exp2(np.round(np.log2(np.abs(data) + MIN_VAL)))
+        if data == 0: data = data + MIN_VAL
         powered = np.exp2(np.round(np.log2(np.abs(data))))
 
         powered = 0 if powered < 1 / self.prec else powered
