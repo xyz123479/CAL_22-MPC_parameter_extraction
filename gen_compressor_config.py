@@ -108,7 +108,8 @@ def generate_scan_path(residue_arrays):
             ncols=TQDM_COLS, position=0, desc=outer_loop_desc.rjust(TQDM_DESC_LEN)):
         inner_loop_desc = "%2d / %2d" %(selected_cluster+1, NUM_CLUSTERS-1)
         residue = residue_arrays[selected_cluster]
-        DBP = BPX(residue, consecutive_xor=True)
+        DBP = BPX(residue, consecutive_xor=True,
+                batch_size=BATCH_SIZE, device=DEVICE)
         scan_index = phi_scan(DBP,
                 batch_size=BATCH_SIZE, device=DEVICE,
                 desc=inner_loop_desc.rjust(TQDM_DESC_LEN))

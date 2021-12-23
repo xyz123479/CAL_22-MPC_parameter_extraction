@@ -1,42 +1,62 @@
 import numpy as np
 import torch
+import cupy as cp
 
 from tqdm.auto import tqdm
 from src.const import *
 from src.utils import *
 
-def BPX(data, consecutive_xor=True):
+def BPX(data, consecutive_xor=True,
+        batch_size=65536, device="cpu"):
     '''
     prediction root = bit_plane[:, :, 0]
     xor base = bit_plane[:, 0, :] / consecutive xor base = bit_plane[:, :-1, :]
     '''
-    if isinstance(data, torch.Tensor):
-        data = data.cpu().numpy()
-    
-    binary_data = np.unpackbits(data, axis=1).reshape(len(data), LINESIZE, DTYPE_SIZE)
-    bit_plane = np.moveaxis(binary_data, 1, -1)
-    
-    if consecutive_xor:
-        bit_plane[:, 1:, 1:] = bit_plane[:, 1:, 1:] ^ bit_plane[:, :-1, 1:] # consecutive xor
-    else:
-        bit_plane[:, 1:, 1:] = bit_plane[:, 1:, 1:] ^ np.expand_dims(bit_plane[:, 0, 1:], 1) # base xor
+#     if isinstance(data, torch.Tensor):
+#         data = data.cpu().numpy()
+    bitplanes = [] 
+    for minibatch in iter_batch(data, batch_size):
+        minibatch = minibatch.to(device)
 
-    bit_plane = torch.from_numpy(bit_plane)
-    return bit_plane
+        # unpackbits whether it is on gpu or cpu
+        if minibatch.is_cuda:
+            minibatch = cp.asarray(minibatch)
+            binary_batch = cp.unpackbits(minibatch)
+        else:
+            minibatch = minibatch.numpy()
+            binary_batch = np.unpackbits(minibatch, axis=1)
+        binary_batch = torch.as_tensor(binary_batch)
 
-def search_idx(data, batch_size, device, desc):
+        binary_batch = binary_batch.reshape(len(minibatch), LINESIZE, DTYPE_SIZE)
+        bitplane = torch.movedim(binary_batch, 1, -1)
+
+        if consecutive_xor:
+            bitplane[:, 1:, 1:] = bitplane[:, 1:, 1:] ^ bitplane[:, :-1, 1:]
+        else:
+            bitplane[:, 1:, 1:] = bitplane[:, 1:, 1:] ^ torch.unsqueeze(bitplane[:, 0, 1:], 1)
+        bitplanes.append(bitplane.to("cpu", non_blocking=True))
+    torch.cuda.synchronize()
+    bitplanes = torch.concat(bitplanes, dim=0)
+    return bitplanes
+
+def search_idx(data, prev_index=None,
+        batch_size=65536, device="cpu",
+        p_bar=None):
     num_lines = len(data)
     rows = data.shape[1]
     cols = data.shape[2]
 
-    p_bar = tqdm(total=num_lines, desc=desc, ncols=TQDM_COLS, leave=False, position=2)
+#     p_bar = tqdm(total=num_lines, desc=desc, ncols=TQDM_COLS, leave=False, position=2)
     total_one_count_table = torch.zeros(size=(rows, cols), dtype=int, device=device)
     for minibatch in iter_batch(data, batch_size):
         minibatch = minibatch.to(device)
+        if prev_index is not None:
+            minibatch = minibatch[minibatch[:, prev_index[0], prev_index[1]] == 0]
         one_count_table = torch.count_nonzero(minibatch, dim=0)
         total_one_count_table = total_one_count_table + one_count_table
-        p_bar.update(len(minibatch))
-    p_bar.close()
+        if p_bar is not None:
+            p_bar.update(len(minibatch))
+#     p_bar.close()
     total_zero_count_table = num_lines - total_one_count_table
     total_zero_count_table = total_zero_count_table.cpu().numpy()
 
@@ -55,28 +75,30 @@ def phi_scan(data,
     scanned_rows = []
     scanned_cols = []
 
-    p_bar = tqdm(total=rows*cols, desc=desc, ncols=TQDM_COLS, leave=False, position=1)
+    p_bar = tqdm(total=rows*cols*num_lines, desc=desc, ncols=TQDM_COLS, leave=False, position=1)
 
     # start idx
-    inner_loop_desc = "%3d / %3d" %(1, rows*cols)
-    sorted_index = search_idx(data, batch_size, device,
-            desc=inner_loop_desc.rjust(TQDM_DESC_LEN))
+#     inner_loop_desc = "%3d / %3d" %(1, rows*cols)
+    sorted_index = search_idx(data,
+            batch_size=batch_size, device=device,
+            p_bar=p_bar)
     start_index = (sorted_index[0][0], sorted_index[1][0])
 
     # start idx check
     index_checklist[start_index] = 1
     scanned_rows.append(start_index[0])  # scanned row
     scanned_cols.append(start_index[1])  # scanned col
-    p_bar.update(1)
+#     p_bar.update(1)
 
     # high zero prob route search
     prev_index = start_index
     data_subset = data
     for curr in range(1, rows * cols):
-        inner_loop_desc = "%3d / %3d" %(curr, rows*cols)
-        data_subset = data_subset[data_subset[:, prev_index[0], prev_index[1]] == 0]
-        sorted_next_index_candidates = search_idx(data_subset, batch_size, device,
-                desc=inner_loop_desc.rjust(TQDM_DESC_LEN))
+#         inner_loop_desc = "%3d / %3d" %(curr, rows*cols)
+#         data_subset = data[data[:, prev_index[0], prev_index[1]] == 0]
+        sorted_next_index_candidates = search_idx(data, prev_index=prev_index,
+                batch_size=batch_size, device=device,
+                p_bar=p_bar)
         for i in range(len(sorted_next_index_candidates[0])):
             index = (sorted_next_index_candidates[0][i], sorted_next_index_candidates[1][i])
             if index_checklist[index] == 0:
@@ -85,7 +107,6 @@ def phi_scan(data,
                 scanned_cols.append(index[1])  # scanned col
                 prev_index = index
                 break
-        p_bar.update(1)
     p_bar.close()
     return scanned_rows, scanned_cols
 
