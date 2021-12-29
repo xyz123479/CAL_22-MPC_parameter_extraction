@@ -12,13 +12,13 @@ from tqdm.auto import tqdm
 
 ##### unique_counts
 class UniqueCount(object):
-    def __init__(self, dtype, is_weight, rounding_fn=None, device="cpu"):
+    def __init__(self, dtype, mode, rounding_fn=None, device="cpu"):
         self.dtype_range = DTYPE_RANGE
         self.rounding_fn = rounding_fn
 
         # a dict of all unique value and its index
         self.all_uniques = {}
-        if is_weight:
+        if mode == "weight":
             for i in range(self.dtype_range):
                 for j in range(self.dtype_range):
                     if i == 0 or j == 0: continue
@@ -27,9 +27,16 @@ class UniqueCount(object):
                     if self.rounding_fn is not None:
                         unique = self.rounding_fn.computeScalar(unique)
                     self.all_uniques[unique] = 0
-        else:
+        elif mode == "difference":
+            for i in range(self.dtype_range):
+                for j in range(self.dtype_range):
+                    unique = i - j
+                    self.all_uniques[unique] = 0
+        elif mode == "symbol":
             for unique in range(self.dtype_range):
                 self.all_uniques[unique] = 0
+        else:
+            assert False
 
         # key is unique value, value is index of unique_counts
         for i, key in enumerate(self.all_uniques):
@@ -62,7 +69,7 @@ def compute_entropy_by_weight(data, rounding_fn=None,
         desc="Computing Weight Entropy"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
-    unique_count = UniqueCount(data.dtype, True, rounding_fn, device)
+    unique_count = UniqueCount(data.dtype, "weight", rounding_fn, device)
 
     # init entropy_array
     entropy_array = {}
@@ -106,7 +113,7 @@ def compute_entropy_by_symbols(data, batch_size=65536, device="cpu",
         desc="Computing Symbol Entropy"):
     # init unique_counts
     # target_col_idx, base_col_idx, unique_idx
-    unique_count = UniqueCount(data.dtype, False, None, device)
+    unique_count = UniqueCount(data.dtype, "symbol", None, device)
 
     entropy_array = {}
     for idx in range(LINESIZE):
@@ -129,6 +136,41 @@ def compute_entropy_by_symbols(data, batch_size=65536, device="cpu",
             'unique'  : unique,
             'counts'  : counts,
         }
+    return entropy_array
+
+def compute_entropy_by_difference(data, batch_size=65536, device="cpu",
+        desc="Computing Difference Entropy"):
+    # init unique_counts
+    # target_col_idx, base_col_idx, unique_idx
+    unique_count = UniqueCount(data.dtype, "difference", None, device)
+
+    # init entropy_array
+    entropy_array = {}
+    for idx in range(LINESIZE):
+        entropy_array[idx] = {}
+    
+    p_bar = tqdm(total = len(data), desc=desc, ncols=TQDM_COLS, leave=False, position=1)
+    for minibatch in iter_batch(data, batch_size):
+        minibatch = minibatch.float().to(device)
+
+        for target_col_idx in range(LINESIZE):
+            diff_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) - minibatch
+            for base_col_idx in range(LINESIZE):
+                col_diffs = diff_data[:, base_col_idx]
+                unique_count.update(target_col_idx, base_col_idx, col_diffs)
+        p_bar.update(len(minibatch)) 
+    p_bar.close()
+
+    for target_col_idx in range(LINESIZE):
+        for base_col_idx in range(LINESIZE):
+            unique, counts = unique_count.get(target_col_idx, base_col_idx)
+            col_entropy = stats.entropy(counts, base=2)
+            entropy_array[target_col_idx][base_col_idx] = {
+                'entropy' : col_entropy,
+                'unique'  : unique,
+                'counts'  : counts,
+            }
+
     return entropy_array
 
 ## Converts to fully connected indirected graph
