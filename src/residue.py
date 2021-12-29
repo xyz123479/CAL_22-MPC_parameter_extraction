@@ -43,9 +43,8 @@ def compute_residue(data, compression_table,
         roots = torch.unsqueeze(minibatch[:, root_idx], dim=-1)
         residue = torch.concat(
                 (roots, residue[:, :root_idx], residue[:, root_idx+1:]), dim=1)
-        residues.append(residue.to("cpu", non_blocking=True))
+        residues.append(residue.cpu())
         p_bar.update(len(minibatch))
-    torch.cuda.synchronize()
     p_bar.close()
 
     residues = torch.concat(residues, dim=0)

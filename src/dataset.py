@@ -97,9 +97,8 @@ def get_data_and_label(dataset_path, label_path,
         all_zero_indices = (minibatch == 0).all(dim=1)
         minibatch_newlabels[all_zero_indices] = 0
 
-        newlabels.append(minibatch_newlabels.to("cpu", non_blocking=True))
+        newlabels.append(minibatch_newlabels.cpu())
         p_bar.update(len(minibatch))
-    torch.cuda.synchronize()
     p_bar.close()
 
     newlabels = torch.concat(newlabels, dim=0)

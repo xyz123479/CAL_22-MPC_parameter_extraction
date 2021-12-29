@@ -34,8 +34,7 @@ def BPX(data, consecutive_xor=True,
             bitplane[:, 1:, 1:] = bitplane[:, 1:, 1:] ^ bitplane[:, :-1, 1:]
         else:
             bitplane[:, 1:, 1:] = bitplane[:, 1:, 1:] ^ torch.unsqueeze(bitplane[:, 0, 1:], 1)
-        bitplanes.append(bitplane.to("cpu", non_blocking=True))
-    torch.cuda.synchronize()
+        bitplanes.append(bitplane.cpu())
     bitplanes = torch.concat(bitplanes, dim=0)
     return bitplanes
 

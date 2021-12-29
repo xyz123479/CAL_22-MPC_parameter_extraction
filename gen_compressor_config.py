@@ -10,7 +10,7 @@ from datetime import datetime
 
 from src import *
 
-BATCH_SIZE=65536 * 4
+BATCH_SIZE=2**18
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 parser = argparse.ArgumentParser('VPC: General Pattern Search. Config generator')
