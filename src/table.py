@@ -1,4 +1,5 @@
 from operator import itemgetter
+import math
 
 import torch
 import numpy as np
@@ -9,6 +10,8 @@ from src.const import *
 from src.utils import *
 
 from tqdm.auto import tqdm
+
+N_DIGITS=12
 
 ##### unique_counts
 class UniqueCount(object):
@@ -35,6 +38,15 @@ class UniqueCount(object):
         elif mode == "symbol":
             for unique in range(self.dtype_range):
                 self.all_uniques[unique] = 0
+#         elif mode == "ratio":
+#             for i in range(self.dtype_range):
+#                 for j in range(self.dtype_range):
+#                     j = MIN_VAL if j == 0 else j
+#                     unique = i / j
+# #                     unique = math.ceil(unique, N_DIGITS)
+#                     unique = math.ceil(unique * 10**N_DIGITS) / (10**N_DIGITS)
+#
+#                     self.all_uniques[unique] = 0
         else:
             assert False
 
@@ -172,6 +184,46 @@ def compute_entropy_by_difference(data, batch_size=65536, device="cpu",
             }
 
     return entropy_array
+
+# def compute_entropy_by_ratio(data,
+#         batch_size=65536, device="cpu",
+#         desc="Computing Ratio Entropy"):
+#     # init unique_counts
+#     # target_col_idx, base_col_idx, unique_idx
+#     unique_count = UniqueCount(data.dtype, "ratio", None, device)
+#
+#     # init entropy_array
+#     entropy_array = {}
+#     for idx in range(LINESIZE):
+#         entropy_array[idx] = {}
+#
+#     p_bar = tqdm(total = len(data), desc=desc, ncols=TQDM_COLS, leave=False, position=1)
+#     for minibatch in iter_batch(data, batch_size):
+#         minibatch = minibatch.float().to(device)
+#
+#         minibatch[minibatch == 0] = MIN_VAL
+#         for target_col_idx in range(LINESIZE):
+#             # target = weight * base
+#             ratio_data = torch.unsqueeze(minibatch[:, target_col_idx], -1) / (minibatch)
+#             ratio_data = torch.ceil(ratio_data * 10**N_DIGITS) / (10**N_DIGITS)
+#
+#             for base_col_idx in range(LINESIZE):
+#                 col_weights = ratio_data[:, base_col_idx]
+#                 unique_count.update(target_col_idx, base_col_idx, col_weights)
+#         p_bar.update(len(minibatch))
+#     p_bar.close()
+#
+#     for target_col_idx in range(LINESIZE):
+#         for base_col_idx in range(LINESIZE):
+#             unique, counts = unique_count.get(target_col_idx, base_col_idx)
+#             col_entropy = stats.entropy(counts, base=2)
+#             entropy_array[target_col_idx][base_col_idx] = {
+#                 'entropy' : col_entropy,
+#                 'unique'  : unique,
+#                 'counts'  : counts,
+#             }
+#
+#     return entropy_array
 
 ## Converts to fully connected indirected graph
 #  and execute MST algorithm

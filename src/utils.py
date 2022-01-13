@@ -35,6 +35,32 @@ class power2:
 
         return sign * powered
 
+class power2_MINVAL:
+    def __init__(self, prec=256):
+        self.prec = prec
+        
+    def __call__(self, data):
+        sign_array = torch.sign(data)
+#         powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data) + MIN_VAL)))
+        powered_array = torch.exp2(torch.round(torch.log2(torch.abs(data))))
+        powered_array[data == 0] = torch.exp2(torch.round(torch.log2(torch.abs(data[data == 0] + MIN_VAL))))
+
+        powered_array[powered_array < 1 / self.prec] = 0
+        powered_array[powered_array > self.prec] = self.prec
+
+        return powered_array * sign_array
+
+    def computeScalar(self, data):
+        sign = 1 if data >= 0 else -1
+#         powered = np.exp2(np.round(np.log2(np.abs(data) + MIN_VAL)))
+        if data == 0: data = data + MIN_VAL
+        powered = np.exp2(np.round(np.log2(np.abs(data))))
+
+        powered = 0 if powered < 1 / self.prec else powered
+        powered = self.prec if powered > self.prec else powered
+
+        return sign * powered
+
 class rounding:
     def __init__(self, decimal=-4):
         self.decimal = decimal

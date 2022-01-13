@@ -43,6 +43,19 @@ def load_data(dataset_path, label_path):
         data_classes[selected_class] = data[label == selected_class]
     return data_classes
 
+def compute_weight_entropy(data_classes):
+    entropy_arrays = {}
+    outer_loop_desc = "Computing Weight Entropy"
+    for selected_cluster in trange(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1,
+            ncols=TQDM_COLS, position=0, desc=outer_loop_desc.rjust(TQDM_DESC_LEN)):
+        inner_loop_desc = "%2d / %2d" %(selected_cluster+1, NUM_CLUSTERS-1)
+        selected_cluster_data = data_classes[selected_cluster]
+        entropy_array = compute_entropy_by_weight(selected_cluster_data, rounding_fn=power2_MINVAL(),
+                batch_size=BATCH_SIZE, device=DEVICE,
+                desc=inner_loop_desc.rjust(TQDM_DESC_LEN))
+        entropy_arrays[selected_cluster] = entropy_array
+    return entropy_arrays
+
 def compute_difference_entropy(data_classes):
     entropy_arrays = {}
     outer_loop_desc = "Computing Difference Entropy"
@@ -51,6 +64,19 @@ def compute_difference_entropy(data_classes):
         inner_loop_desc = "%2d / %2d" %(selected_cluster+1, NUM_DTYPE)
         selected_cluster_data = data_classes[selected_cluster]
         entropy_array = compute_entropy_by_difference(selected_cluster_data,
+                batch_size=BATCH_SIZE, device=DEVICE,
+                desc=inner_loop_desc.rjust(TQDM_DESC_LEN))
+        entropy_arrays[selected_cluster] = entropy_array
+    return entropy_arrays
+
+def compute_ratio_entropy(data_classes):
+    entropy_arrays = {}
+    outer_loop_desc = "Computing Ratio Entropy"
+    for selected_cluster in trange(NUM_FIRST_CLUSTER, NUM_CLUSTERS - 1,
+            ncols=TQDM_COLS, position=0, desc=outer_loop_desc.rjust(TQDM_DESC_LEN)):
+        inner_loop_desc = "%2d / %2d" %(selected_cluster+1, NUM_CLUSTERS-1)
+        selected_cluster_data = data_classes[selected_cluster]
+        entropy_array = compute_entropy_by_ratio(selected_cluster_data,
                 batch_size=BATCH_SIZE, device=DEVICE,
                 desc=inner_loop_desc.rjust(TQDM_DESC_LEN))
         entropy_arrays[selected_cluster] = entropy_array
@@ -72,11 +98,12 @@ def main(args):
     
     # compute entropy
     print("Computing entropy...")
-    diff_entropy_arrays = compute_difference_entropy(data_classes)
+#     diff_entropy_arrays = compute_difference_entropy(data_classes)
+    val_entropy_arrays = compute_weight_entropy(data_classes)
 
     # save
     with open(diff_entropy_arr_path, "wb") as f:
-        pickle.dump(diff_entropy_arrays, f)
+        pickle.dump(val_entropy_arrays, f)
 
 
 
