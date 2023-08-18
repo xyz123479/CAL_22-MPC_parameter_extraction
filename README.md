@@ -11,4 +11,4 @@ Paper title: [CAL'22] Multi-Prediction Compression: An Efficient and Scalable Me
 Paper URL: https://ieeexplore.ieee.org/abstract/document/9780608
 
 # Overview
-![An overview of MPC](https://github.com/scalable-arch/CAL_22-MPC_parameter_extraction/blob/main/MPC.PNG)
+![An overview of MPC](https://github.com/xyz123479/CAL_22-MPC_parameter_extraction/blob/main/MPC.PNG)
